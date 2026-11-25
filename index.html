@@ -108,9 +108,9 @@ textarea:focus,input[type=text]:focus{outline:3px solid rgba(250,36,60,.22);bord
   background:#f5f5f7;box-shadow:inset 0 0 0 2px rgba(0,0,0,.25)}
 .arm{position:absolute;right:-17%;top:-9%;width:37%;z-index:3;pointer-events:none;
   filter:drop-shadow(0 5px 6px rgba(0,0,0,.2));overflow:visible}
-.armg{transform-box:view-box;transform-origin:96px 26px;transform:rotate(-32deg);
+.armg{transform-box:view-box;transform-origin:96px 26px;transform:rotate(-12deg);
   transition:transform 1s cubic-bezier(.4,0,.2,1)}
-.np.playing .armg{transform:rotate(-1deg)}
+.np.playing .armg{transform:rotate(7deg)}
 
 .eyebrow{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;letter-spacing:.12em;
   text-transform:uppercase;color:var(--red)}
@@ -192,7 +192,7 @@ select{background:rgba(255,255,255,.8);color:var(--text);border:1px solid var(--
         </div></div>
         <div class="step"><b>2</b><div>
           <p>Dán mã trả lời của bạn bè vào đây.</p>
-          <textarea id="answerIn" rows="4" placeholder="TS1...."></textarea>
+          <textarea id="answerIn" rows="4" placeholder="TS2...."></textarea>
           <div class="row"><button id="btnConnect" class="btn primary">Kết nối</button></div>
         </div></div>
       </div>
@@ -200,7 +200,7 @@ select{background:rgba(255,255,255,.8);color:var(--text);border:1px solid var(--
       <div id="guestPanel" hidden>
         <div class="step"><b>1</b><div>
           <p>Dán mã mời nhận từ bạn bè.</p>
-          <textarea id="offerIn" rows="4" placeholder="TS1...."></textarea>
+          <textarea id="offerIn" rows="4" placeholder="TS2...."></textarea>
           <div class="row"><button id="btnAnswer" class="btn primary">Tạo mã trả lời</button></div>
         </div></div>
         <div class="step"><b>2</b><div>
@@ -238,7 +238,7 @@ select{background:rgba(255,255,255,.8);color:var(--text);border:1px solid var(--
 
         <div>
           <div class="eyebrow"><span class="eq"><i></i><i></i><i></i><i></i></span>Đang phát</div>
-          <h2 id="npTitle">Chưa có bài nào đang phát</h2>
+          <h2 id="npTitle">Chưa phát bài nào</h2>
           <p id="npSub" class="who">Bấm “Chia sẻ âm thanh tab” để bắt đầu</p>
 
           <div id="titleRow" class="titlerow" hidden>
@@ -321,36 +321,65 @@ function tuneOpus(sdp){
     return `a=fmtp:${pt} ${params};stereo=1;sprop-stereo=1;maxaveragebitrate=${OPUS_MAX_BITRATE}`;
   });
 }
-function bytesToB64url(bytes){
-  let s = ''; for (const b of bytes) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-function b64urlToBytes(str){
-  str = str.replace(/-/g, '+').replace(/_/g, '/');
-  while (str.length % 4) str += '=';
-  const bin = atob(str), out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+// Mã chỉ gồm A-Z và 2-7 (base32) để app chat không làm hỏng; có checksum CRC32 để phát hiện lỗi
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function toB32(bytes){
+  let bits = 0, val = 0, out = '';
+  for (const b of bytes){
+    val = (val << 8) | b; bits += 8;
+    while (bits >= 5){ out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; }
+    val &= (1 << bits) - 1;
+  }
+  if (bits > 0) out += B32[(val << (5 - bits)) & 31];
   return out;
 }
-async function encodeDesc(desc){
-  const json = JSON.stringify({t: desc.type, s: desc.sdp});
-  if (typeof CompressionStream !== 'undefined'){
-    const cs = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-    return 'TS1.' + bytesToB64url(new Uint8Array(await new Response(cs).arrayBuffer()));
+function fromB32(s){
+  let bits = 0, val = 0; const out = [];
+  for (const ch of s){
+    const i = B32.indexOf(ch);
+    if (i < 0) throw new Error('Mã chứa ký tự lạ, hãy sao chép lại bằng nút “Sao chép”');
+    val = (val << 5) | i; bits += 5;
+    if (bits >= 8){ out.push((val >>> (bits - 8)) & 255); bits -= 8; val &= (1 << bits) - 1; }
   }
-  return 'TS0.' + bytesToB64url(new TextEncoder().encode(json));
+  return new Uint8Array(out);
+}
+function crc32(b){
+  let crc = -1;
+  for (let i = 0; i < b.length; i++){
+    let c = (crc ^ b[i]) & 255;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    crc = (crc >>> 8) ^ c;
+  }
+  return (crc ^ -1) >>> 0;
+}
+async function encodeDesc(desc){
+  const raw = new TextEncoder().encode(JSON.stringify({t: desc.type, s: desc.sdp}));
+  let flag = 0, payload = raw;
+  if (typeof CompressionStream !== 'undefined'){
+    const cs = new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    payload = new Uint8Array(await new Response(cs).arrayBuffer()); flag = 1;
+  }
+  const c = crc32(payload);
+  const all = new Uint8Array(5 + payload.length);
+  all[0] = flag;
+  all[1] = c >>> 24; all[2] = (c >>> 16) & 255; all[3] = (c >>> 8) & 255; all[4] = c & 255;
+  all.set(payload, 5);
+  return 'TS2' + toB32(all);
 }
 async function decodeDesc(code){
-  code = (code || '').replace(/\s+/g, '');
-  const m = code.match(/^(TS[01])\.(.+)$/);
-  if (!m) throw new Error('Mã không hợp lệ (phải bắt đầu bằng TS1.)');
-  const bytes = b64urlToBytes(m[2]);
-  let json;
-  if (m[1] === 'TS1'){
-    const ds = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-    json = await new Response(ds).text();
-  } else json = new TextDecoder().decode(bytes);
-  const o = JSON.parse(json);
+  code = (code || '').replace(/\s+/g, '').toUpperCase();
+  if (!code.startsWith('TS2')) throw new Error('Mã không hợp lệ hoặc là mã bản cũ. Hãy tạo lại mã bằng bản mới.');
+  const all = fromB32(code.slice(3));
+  if (all.length < 6) throw new Error('Mã quá ngắn, có thể bị thiếu. Hãy sao chép lại đầy đủ.');
+  const payload = all.slice(5);
+  const want = ((all[1] << 24) | (all[2] << 16) | (all[3] << 8) | all[4]) >>> 0;
+  if (crc32(payload) !== want) throw new Error('Mã bị thiếu hoặc sai ký tự. Hãy sao chép lại đầy đủ bằng nút “Sao chép”.');
+  let bytes = payload;
+  if (all[0] === 1){
+    const ds = new Blob([payload]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    bytes = new Uint8Array(await new Response(ds).arrayBuffer());
+  }
+  const o = JSON.parse(new TextDecoder().decode(bytes));
   return {type: o.t, sdp: o.s};
 }
 // </codec>
@@ -554,7 +583,7 @@ function currentSrc(){
 }
 function renderNP(){
   const src = currentSrc(), cur = src && np[src];
-  $('npTitle').textContent = cur ? (cur.title || 'Âm thanh từ tab đang chia sẻ') : 'Chưa có bài nào đang phát';
+  $('npTitle').textContent = cur ? (cur.title || 'Âm thanh từ tab đang chia sẻ') : 'Chưa phát bài nào';
   $('npSub').textContent = cur
     ? (src === 'local' ? 'Bạn đang chia sẻ' : 'Bạn bè đang chia sẻ')
     : 'Bấm “Chia sẻ âm thanh tab” để bắt đầu';

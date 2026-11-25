@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>TabSync – Nghe nhạc chung</title>
+<style>
+@property --h{syntax:'<number>';inherits:true;initial-value:350}
+:root{
+  --bg:#f5f5f7;--card:#fff;--fill:#f2f2f7;--fill2:#e9e9ee;--line:#e5e5ea;
+  --text:#1d1d1f;--muted:#6e6e73;--faint:#8e8e93;
+  --red:#fa243c;--red2:#ff5c72;--ok:#30d158;--warn:#ff9f0a;--bad:#ff453a;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 10px 32px rgba(0,0,0,.07);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI",Inter,Roboto,system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:radial-gradient(900px 420px at 50% -120px,#ffe3e7 0%,transparent 70%),var(--bg);
+  color:var(--text);font:15px/1.5 var(--font);-webkit-font-smoothing:antialiased;min-height:100vh}
+button{font:inherit;cursor:pointer;color:inherit}
+[hidden]{display:none!important}
+
+/* ---------- Header ---------- */
+.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.72);
+  -webkit-backdrop-filter:saturate(180%) blur(22px);backdrop-filter:saturate(180%) blur(22px);
+  border-bottom:1px solid rgba(0,0,0,.06)}
+.top-in{max-width:920px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;letter-spacing:-.01em}
+.logo{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;font-size:17px;
+  background:linear-gradient(160deg,var(--red2),var(--red));box-shadow:0 3px 10px rgba(250,36,60,.35)}
+.pill{display:flex;align-items:center;gap:8px;padding:6px 13px;border-radius:999px;background:var(--fill);
+  font-size:13px;font-weight:500;color:var(--muted);white-space:nowrap}
+.pill i{width:8px;height:8px;border-radius:50%;background:#c7c7cc}
+.pill.ok{color:#1c7a3a}.pill.ok i{background:var(--ok);box-shadow:0 0 0 3px rgba(48,209,88,.2)}
+.pill.warn i{background:var(--warn)}.pill.bad{color:#c4271d}.pill.bad i{background:var(--bad)}
+
+.wrap{max-width:920px;margin:0 auto;padding:28px 20px 70px}
+.hero{margin:6px 0 22px}
+.hero h1{margin:0;font-size:clamp(30px,5vw,44px);line-height:1.08;letter-spacing:-.03em;font-weight:800}
+.hero h1 span{background:linear-gradient(90deg,var(--red),#ff6a3d);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{margin:10px 0 0;color:var(--muted);font-size:17px;max-width:560px}
+
+.card{background:var(--card);border-radius:24px;box-shadow:var(--shadow);padding:24px;margin-bottom:18px}
+.card h2{margin:0 0 4px;font-size:20px;letter-spacing:-.02em}
+.sub{margin:0 0 16px;color:var(--muted);font-size:14px}
+
+/* ---------- Điều khiển chung ---------- */
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--fill2);border-radius:12px;padding:3px;margin:4px 0 22px}
+.seg button{background:none;border:0;padding:8px;border-radius:10px;font-weight:600;font-size:14px;color:var(--muted);transition:.2s}
+.seg button.on{background:#fff;color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.14)}
+.step{display:flex;gap:14px;margin-bottom:20px}
+.step:last-child{margin-bottom:0}
+.step>b{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+  background:linear-gradient(160deg,var(--red2),var(--red));color:#fff;font-size:13px}
+.step>div{flex:1;min-width:0}
+.step p{margin:3px 0 10px;color:var(--muted);font-size:14px}
+textarea,input[type=text]{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:14px;
+  padding:11px 13px;font:inherit}
+textarea{font:12px/1.45 ui-monospace,"SF Mono",Consolas,monospace;resize:vertical;word-break:break-all}
+textarea:focus,input[type=text]:focus{outline:3px solid rgba(250,36,60,.22);border-color:var(--red)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.btn{background:var(--fill);border:0;padding:10px 18px;border-radius:999px;font-weight:600;transition:.15s}
+.btn:hover{background:var(--fill2)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.primary{background:linear-gradient(180deg,var(--red2),var(--red));color:#fff;box-shadow:0 5px 16px rgba(250,36,60,.32)}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.lg{padding:13px 26px;font-size:16px}
+.btn.danger{color:var(--red)}
+.btn.ghost{background:none;color:var(--red);padding:8px 4px}
+.notice{padding:12px 16px;border-radius:16px;margin-bottom:18px;font-size:14px}
+.notice.bad{background:#fff0ef;color:#b3261e}.notice.warn{background:#fff6e5;color:#8a5a00}
+
+/* ---------- Đang phát ---------- */
+.np{position:relative;overflow:hidden;padding:34px 30px;transition:--h 1s ease;
+  background:
+    radial-gradient(90% 120% at 0% 0%,hsl(var(--h) 100% 90%) 0%,transparent 62%),
+    radial-gradient(90% 110% at 100% 100%,hsl(calc(var(--h) + 45) 100% 92%) 0%,transparent 60%),#fff}
+.np-grid{display:grid;grid-template-columns:minmax(240px,340px) 1fr;gap:40px;align-items:center}
+@media(max-width:760px){.np{padding:26px 20px}.np-grid{grid-template-columns:1fr;gap:26px}}
+
+.stagewrap{display:grid;place-items:center;padding-right:9%}
+.stage{position:relative;width:100%;max-width:310px;aspect-ratio:1;--lvl:0}
+.stage::before{content:"";position:absolute;inset:6%;border-radius:50%;background:hsl(var(--h) 95% 62%);
+  filter:blur(38px);opacity:0;transition:opacity .6s}
+.np.active .stage::before{opacity:calc(.22 + var(--lvl) * .55)}
+.disc{position:absolute;inset:0;border-radius:50%;animation:spin 5.5s linear infinite;animation-play-state:paused;
+  box-shadow:0 22px 50px rgba(0,0,0,.28),0 2px 6px rgba(0,0,0,.3);
+  background:
+    conic-gradient(from 20deg,rgba(255,255,255,0) 0deg,rgba(255,255,255,.22) 28deg,rgba(255,255,255,0) 62deg,
+      rgba(255,255,255,0) 180deg,rgba(255,255,255,.16) 208deg,rgba(255,255,255,0) 242deg),
+    repeating-radial-gradient(circle at 50% 50%,#101012 0 1.6px,#222226 1.6px 3px),
+    #111}
+.disc::after{content:"";position:absolute;inset:7%;border-radius:50%;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.07),inset 0 0 0 14px rgba(0,0,0,.18)}
+.np.playing .disc{animation-play-state:running}
+@keyframes spin{to{transform:rotate(360deg)}}
+.label{position:absolute;inset:32%;border-radius:50%;display:grid;place-items:center;overflow:hidden;
+  background:linear-gradient(140deg,hsl(var(--h) 92% 62%),hsl(calc(var(--h) + 48) 88% 52%));
+  box-shadow:0 0 0 3px rgba(0,0,0,.35)}
+.label::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 28% 24%,rgba(255,255,255,.55),transparent 46%),
+    conic-gradient(from 0deg,transparent 0 40deg,rgba(255,255,255,.18) 40deg 90deg,transparent 90deg 360deg)}
+.label .note{position:relative;font-size:clamp(26px,7vw,44px);color:rgba(255,255,255,.95);transform:translateY(-6%);
+  text-shadow:0 2px 8px rgba(0,0,0,.25)}
+.hole{position:absolute;left:50%;top:50%;width:5.5%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);
+  background:#f5f5f7;box-shadow:inset 0 0 0 2px rgba(0,0,0,.25)}
+.arm{position:absolute;right:-17%;top:-9%;width:37%;z-index:3;pointer-events:none;
+  filter:drop-shadow(0 5px 6px rgba(0,0,0,.2));overflow:visible}
+.armg{transform-box:view-box;transform-origin:96px 26px;transform:rotate(-32deg);
+  transition:transform 1s cubic-bezier(.4,0,.2,1)}
+.np.playing .armg{transform:rotate(-1deg)}
+
+.eyebrow{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--red)}
+.eq{display:inline-flex;align-items:flex-end;gap:2px;height:14px}
+.eq i{width:3px;height:100%;border-radius:2px;background:var(--red);transform-origin:bottom;transform:scaleY(.25);
+  animation:eq 1s ease-in-out infinite;animation-play-state:paused}
+.eq i:nth-child(2){animation-delay:-.4s;animation-duration:.8s}
+.eq i:nth-child(3){animation-delay:-.7s;animation-duration:1.15s}
+.eq i:nth-child(4){animation-delay:-.2s;animation-duration:.9s}
+.np.playing .eq i{animation-play-state:running}
+@keyframes eq{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}
+.np h2{margin:10px 0 4px;font-size:clamp(26px,4vw,36px);line-height:1.12;letter-spacing:-.03em;font-weight:800;
+  overflow-wrap:anywhere}
+.np .who{margin:0;color:var(--muted);font-size:17px}
+.titlerow{margin-top:18px}
+.titlerow label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 6px 4px}
+.titlerow input{background:rgba(255,255,255,.7);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+
+.vol{display:flex;align-items:center;gap:10px;margin-top:26px;color:var(--faint)}
+.vol svg{flex:none;width:18px;height:18px}
+.vol input{flex:1}
+.volval{width:40px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted)}
+input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:99px;outline:none;cursor:pointer;
+  background:linear-gradient(to right,#8e8e93 var(--p,100%),rgba(60,60,67,.18) var(--p,100%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 5px rgba(0,0,0,.4);transition:transform .15s}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.4)}
+.opts{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;font-size:13px;color:var(--muted)}
+select{background:rgba(255,255,255,.8);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font:inherit}
+
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;text-align:center}
+@media(max-width:640px){.stats{grid-template-columns:repeat(3,1fr)}}
+.stats div{background:var(--bg);border-radius:16px;padding:12px 4px}
+.stats b{display:block;font-size:20px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stats span{font-size:11px;color:var(--muted)}
+.foot{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.tips{margin:0;padding-left:18px;color:var(--muted);font-size:13px;max-width:560px}
+.tips li{margin:3px 0}
+
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,10px);background:rgba(29,29,31,.92);color:#fff;
+  padding:11px 18px;border-radius:14px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;max-width:90vw;z-index:50;
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+@media(prefers-reduced-motion:reduce){.disc,.eq i{animation-duration:20s}.armg{transition:none}}
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in">
+  <div class="brand"><div class="logo">♪</div>TabSync</div>
+  <div id="pill" class="pill"><i></i><span id="pillText">Chưa kết nối</span></div>
+</div></div>
+
+<div class="wrap">
+  <div id="compat" class="notice bad" hidden></div>
+
+  <!-- ===== KẾT NỐI ===== -->
+  <section id="setup">
+    <div class="hero">
+      <h1>Nghe nhạc <span>cùng nhau.</span></h1>
+      <p>Chia sẻ âm thanh một tab trình duyệt sang máy bạn bè, trực tiếp từ máy này sang máy kia, không qua server.</p>
+    </div>
+
+    <div class="card">
+      <div class="seg">
+        <button id="tabHost" class="on">Tôi tạo phòng</button>
+        <button id="tabGuest">Tôi tham gia</button>
+      </div>
+
+      <div id="hostPanel">
+        <div class="step"><b>1</b><div>
+          <p>Tạo mã mời rồi gửi cho bạn bè qua Zalo, Messenger…</p>
+          <button id="btnOffer" class="btn primary">Tạo mã mời</button>
+          <div id="offerBox" hidden>
+            <textarea id="offerOut" rows="4" readonly style="margin-top:12px"></textarea>
+            <div class="row"><button class="btn" data-copy="offerOut">Sao chép mã mời</button></div>
+          </div>
+        </div></div>
+        <div class="step"><b>2</b><div>
+          <p>Dán mã trả lời của bạn bè vào đây.</p>
+          <textarea id="answerIn" rows="4" placeholder="TS1...."></textarea>
+          <div class="row"><button id="btnConnect" class="btn primary">Kết nối</button></div>
+        </div></div>
+      </div>
+
+      <div id="guestPanel" hidden>
+        <div class="step"><b>1</b><div>
+          <p>Dán mã mời nhận từ bạn bè.</p>
+          <textarea id="offerIn" rows="4" placeholder="TS1...."></textarea>
+          <div class="row"><button id="btnAnswer" class="btn primary">Tạo mã trả lời</button></div>
+        </div></div>
+        <div class="step"><b>2</b><div>
+          <p>Gửi mã trả lời này lại cho bạn bè. Khi họ bấm “Kết nối”, phòng sẽ tự mở.</p>
+          <div id="answerBox" hidden>
+            <textarea id="answerOut" rows="4" readonly></textarea>
+            <div class="row"><button class="btn" data-copy="answerOut">Sao chép mã trả lời</button></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== PHÒNG ===== -->
+  <section id="room" hidden>
+    <div id="npCard" class="card np">
+      <div class="np-grid">
+        <div class="stagewrap">
+          <div class="stage" id="stage">
+            <svg class="arm" viewBox="0 0 120 220" aria-hidden="true">
+              <g class="armg">
+                <path d="M96 26 L96 128 L58 186" fill="none" stroke="#d1d1d6" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M96 26 L96 128 L58 186" fill="none" stroke="#f2f2f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <rect x="43" y="178" width="26" height="36" rx="6" transform="rotate(36 56 196)" fill="#8e8e93"/>
+                <circle cx="96" cy="26" r="21" fill="#f2f2f7" stroke="#d1d1d6" stroke-width="2"/>
+                <circle cx="96" cy="26" r="8" fill="#8e8e93"/>
+              </g>
+            </svg>
+            <div class="disc" id="disc">
+              <div class="label"><span class="note">♪</span></div>
+              <div class="hole"></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="eyebrow"><span class="eq"><i></i><i></i><i></i><i></i></span>Đang phát</div>
+          <h2 id="npTitle">Chưa có bài nào đang phát</h2>
+          <p id="npSub" class="who">Bấm “Chia sẻ âm thanh tab” để bắt đầu</p>
+
+          <div id="titleRow" class="titlerow" hidden>
+            <label for="titleIn">Tên bài hát (tuỳ chọn, bạn bè sẽ thấy)</label>
+            <input id="titleIn" type="text" maxlength="80" placeholder="Ví dụ: Tên bài hát – Ca sĩ" autocomplete="off">
+          </div>
+
+          <div class="actions">
+            <button id="btnShare" class="btn primary lg">Chia sẻ âm thanh tab</button>
+            <button id="btnStop" class="btn lg danger" hidden>Dừng chia sẻ</button>
+          </div>
+
+          <div class="vol">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 4V5L7 9H3z"/></svg>
+            <input id="vol" type="range" min="0" max="100" value="100">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+            <span id="volVal" class="volval">100%</span>
+          </div>
+          <div class="opts">
+            <span>Độ trễ</span>
+            <select id="latency">
+              <option value="100">Thấp (dễ giật)</option>
+              <option value="300" selected>Cân bằng</option>
+              <option value="700">Ổn định (trễ hơn)</option>
+            </select>
+            <button id="btnUnmute" class="btn" hidden>Bật âm thanh</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="stats">
+        <div><b id="stPing">–</b><span>Ping (ms)</span></div>
+        <div><b id="stRx">–</b><span>Nhận (kbps)</span></div>
+        <div><b id="stTx">–</b><span>Gửi (kbps)</span></div>
+        <div><b id="stLoss">–</b><span>Mất gói</span></div>
+        <div><b id="stJit">–</b><span>Jitter (ms)</span></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <ul class="tips">
+        <li>Cả hai máy đều có thể chia sẻ, âm thanh đi hai chiều.</li>
+        <li>Muốn nghe đồng bộ: một người phát, người kia chỉ nghe và tắt nhạc ở máy mình.</li>
+        <li>Đeo tai nghe nếu cả hai cùng phát để tránh vọng tiếng.</li>
+      </ul>
+      <button id="btnLeave" class="btn danger">Thoát phòng</button>
+    </div>
+  </section>
+</div>
+
+<audio id="remoteAudio" autoplay></audio>
+<div id="toast"></div>
+
+<script>
+/* ============ CẤU HÌNH ============ */
+// Muốn kết nối ổn định giữa 2 mạng khó (4G, mạng công ty), hãy thêm máy chủ TURN vào đây:
+// {urls:'turn:your.turn.server:3478', username:'user', credential:'pass'}
+const ICE_SERVERS = [
+  {urls: 'stun:stun.l.google.com:19302'},
+  {urls: 'stun:stun1.l.google.com:19302'}
+];
+const OPUS_MAX_BITRATE = 256000; // bit/s
+
+/* ============ TIỆN ÍCH ============ */
+const $ = id => document.getElementById(id);
+let toastTimer;
+function toast(msg, ms = 3500){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+function setPill(kind, text){ $('pill').className = 'pill ' + kind; $('pillText').textContent = text; }
+
+// <codec>
+function tuneOpus(sdp){
+  // Bật stereo + bitrate cao cho nhạc
+  return sdp.replace(/a=fmtp:(\d+) ([^\r\n]*useinbandfec=1[^\r\n]*)/g, (m, pt, params) => {
+    if (/stereo=1/.test(params)) return m;
+    return `a=fmtp:${pt} ${params};stereo=1;sprop-stereo=1;maxaveragebitrate=${OPUS_MAX_BITRATE}`;
+  });
+}
+function bytesToB64url(bytes){
+  let s = ''; for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlToBytes(str){
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  const bin = atob(str), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function encodeDesc(desc){
+  const json = JSON.stringify({t: desc.type, s: desc.sdp});
+  if (typeof CompressionStream !== 'undefined'){
+    const cs = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    return 'TS1.' + bytesToB64url(new Uint8Array(await new Response(cs).arrayBuffer()));
+  }
+  return 'TS0.' + bytesToB64url(new TextEncoder().encode(json));
+}
+async function decodeDesc(code){
+  code = (code || '').replace(/\s+/g, '');
+  const m = code.match(/^(TS[01])\.(.+)$/);
+  if (!m) throw new Error('Mã không hợp lệ (phải bắt đầu bằng TS1.)');
+  const bytes = b64urlToBytes(m[2]);
+  let json;
+  if (m[1] === 'TS1'){
+    const ds = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    json = await new Response(ds).text();
+  } else json = new TextDecoder().decode(bytes);
+  const o = JSON.parse(json);
+  return {type: o.t, sdp: o.s};
+}
+// </codec>
+
+/* ============ TRẠNG THÁI ============ */
+let pc = null, sender = null, receiver = null, dc = null;
+let localStream = null, remoteStream = null;
+let audioCtx = null, statsTimer = null, lastStats = null, npTimer = null;
+const meters = {}, level = {tx: 0, rx: 0}, lastLoud = {tx: 0, rx: 0};
+const np = {local: {on: false, title: '', since: 0}, remote: {on: false, title: '', since: 0}};
+const remoteAudio = $('remoteAudio'), npCard = $('npCard');
+
+/* ============ WEBRTC ============ */
+function newPC(){
+  closePC();
+  pc = new RTCPeerConnection({iceServers: ICE_SERVERS});
+  pc.ontrack = e => {
+    receiver = e.receiver;
+    applyLatency();
+    remoteStream = new MediaStream([e.track]);
+    remoteAudio.srcObject = remoteStream;
+    remoteAudio.play().catch(() => { $('btnUnmute').hidden = false; });
+    startMeter(remoteStream, 'rx');
+  };
+  pc.onconnectionstatechange = onConnState;
+  return pc;
+}
+
+// Kênh dữ liệu (đã thoả thuận sẵn id=0) để đồng bộ tên bài hát và trạng thái đang phát
+function setupDC(){
+  dc = pc.createDataChannel('np', {negotiated: true, id: 0});
+  dc.onopen = sendNP;
+  dc.onmessage = e => {
+    try {
+      const m = JSON.parse(e.data);
+      if (m.type !== 'np') return;
+      const was = np.remote.on;
+      np.remote.on = !!m.on;
+      np.remote.title = String(m.title || '').slice(0, 80);
+      if (np.remote.on && !was) np.remote.since = Date.now();
+      renderNP();
+    } catch (_) {}
+  };
+}
+function sendNP(){
+  if (dc && dc.readyState === 'open')
+    dc.send(JSON.stringify({type: 'np', on: np.local.on, title: np.local.title}));
+}
+
+function waitIce(){
+  return new Promise(res => {
+    if (pc.iceGatheringState === 'complete') return res();
+    const done = () => { clearTimeout(t); pc.removeEventListener('icegatheringstatechange', h); res(); };
+    const h = () => { if (pc.iceGatheringState === 'complete') done(); };
+    const t = setTimeout(done, 5000);
+    pc.addEventListener('icegatheringstatechange', h);
+  });
+}
+
+async function makeOffer(){
+  newPC();
+  // 1 kênh audio hai chiều; âm thanh gắn sau bằng replaceTrack nên không cần đàm phán lại
+  sender = pc.addTransceiver('audio', {direction: 'sendrecv'}).sender;
+  setupDC();
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription({type: 'offer', sdp: tuneOpus(offer.sdp)});
+  await waitIce();
+  $('offerOut').value = await encodeDesc(pc.localDescription);
+  $('offerBox').hidden = false;
+}
+
+async function applyAnswer(){
+  if (!pc) throw new Error('Hãy bấm “Tạo mã mời” trước');
+  const desc = await decodeDesc($('answerIn').value);
+  if (desc.type !== 'answer') throw new Error('Đây không phải mã trả lời');
+  await pc.setRemoteDescription(desc);
+  setPill('warn', 'Đang kết nối…');
+}
+
+async function makeAnswer(){
+  const desc = await decodeDesc($('offerIn').value);
+  if (desc.type !== 'offer') throw new Error('Đây không phải mã mời');
+  newPC();
+  await pc.setRemoteDescription(desc);
+  const t = pc.getTransceivers().find(x => x.receiver.track.kind === 'audio');
+  t.direction = 'sendrecv';
+  sender = t.sender;
+  setupDC();
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription({type: 'answer', sdp: tuneOpus(answer.sdp)});
+  await waitIce();
+  $('answerOut').value = await encodeDesc(pc.localDescription);
+  $('answerBox').hidden = false;
+  setPill('warn', 'Chờ bạn bè bấm “Kết nối”…');
+}
+
+function onConnState(){
+  const s = pc.connectionState;
+  if (s === 'connected'){
+    setPill('ok', 'Đã kết nối');
+    $('setup').hidden = true; $('room').hidden = false;
+    startStats(); startStageLoop(); renderNP();
+  } else if (s === 'connecting'){
+    setPill('warn', 'Đang kết nối…');
+  } else if (s === 'disconnected'){
+    setPill('warn', 'Mất tín hiệu, đang thử lại…');
+  } else if (s === 'failed'){
+    setPill('bad', 'Kết nối thất bại');
+    toast('Không kết nối được. Có thể mạng chặn P2P – thử cùng Wi-Fi hoặc thêm máy chủ TURN.', 6000);
+  } else if (s === 'closed'){
+    setPill('', 'Chưa kết nối');
+  }
+}
+
+function closePC(){
+  stopShare(true);
+  stopStats();
+  stopMeter('rx');
+  if (pc){ pc.onconnectionstatechange = null; pc.ontrack = null; pc.close(); }
+  pc = sender = receiver = dc = null;
+  remoteStream = null;
+  remoteAudio.srcObject = null;
+  np.local.on = np.remote.on = false;
+}
+
+function leave(){
+  closePC();
+  $('room').hidden = true; $('setup').hidden = false;
+  $('offerBox').hidden = true; $('answerBox').hidden = true;
+  for (const id of ['offerOut','answerOut','answerIn','offerIn','titleIn']) $(id).value = '';
+  np.local.title = '';
+  $('btnShare').hidden = false; $('btnStop').hidden = true;
+  renderNP();
+  setPill('', 'Chưa kết nối');
+}
+
+/* ============ CHIA SẺ ÂM THANH TAB ============ */
+async function startShare(){
+  if (!sender) throw new Error('Chưa kết nối');
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: {echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2},
+      selfBrowserSurface: 'exclude',
+      systemAudio: 'exclude',
+      preferCurrentTab: false
+    });
+  } catch (e){
+    if (e.name === 'NotAllowedError') return; // người dùng bấm Hủy
+    throw e;
+  }
+  const track = stream.getAudioTracks()[0];
+  if (!track){
+    stream.getTracks().forEach(t => t.stop());
+    throw new Error('Không có âm thanh. Hãy chọn một TAB và tick “Chia sẻ âm thanh của tab”.');
+  }
+  // Hình ảnh không dùng tới → giảm tối đa chi phí
+  stream.getVideoTracks().forEach(v => v.applyConstraints({frameRate: 1, width: 320, height: 180}).catch(() => {}));
+  track.contentHint = 'music';
+  await sender.replaceTrack(track);
+  try {
+    const p = sender.getParameters();
+    if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+    p.encodings[0].maxBitrate = OPUS_MAX_BITRATE;
+    await sender.setParameters(p);
+  } catch (_) {}
+
+  localStream = stream;
+  startMeter(new MediaStream([track]), 'tx');
+  np.local.on = true; np.local.since = Date.now(); np.local.title = $('titleIn').value.trim();
+  sendNP(); renderNP();
+  $('btnShare').hidden = true; $('btnStop').hidden = false;
+  track.onended = () => stopShare();
+}
+
+function stopShare(silent){
+  if (localStream){
+    localStream.getTracks().forEach(t => { t.onended = null; t.stop(); });
+    localStream = null;
+  }
+  if (sender){ sender.replaceTrack(null).catch(() => {}); }
+  stopMeter('tx');
+  np.local.on = false;
+  if (!silent){
+    sendNP(); renderNP();
+    $('btnShare').hidden = false; $('btnStop').hidden = true;
+  }
+}
+
+/* ============ GIAO DIỆN ĐANG PHÁT ============ */
+function hueOf(s){
+  if (!s) return 350;
+  let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h % 360;
+}
+function currentSrc(){
+  const L = np.local, R = np.remote;
+  if (L.on && R.on) return L.since >= R.since ? 'local' : 'remote';
+  return L.on ? 'local' : R.on ? 'remote' : null;
+}
+function renderNP(){
+  const src = currentSrc(), cur = src && np[src];
+  $('npTitle').textContent = cur ? (cur.title || 'Âm thanh từ tab đang chia sẻ') : 'Chưa có bài nào đang phát';
+  $('npSub').textContent = cur
+    ? (src === 'local' ? 'Bạn đang chia sẻ' : 'Bạn bè đang chia sẻ')
+    : 'Bấm “Chia sẻ âm thanh tab” để bắt đầu';
+  npCard.style.setProperty('--h', hueOf(cur ? (cur.title || 'tab') : ''));
+  npCard.classList.toggle('active', !!cur);
+  $('titleRow').hidden = !np.local.on;
+}
+
+let stageRaf = 0, lastPlaying = false, smooth = 0;
+function startStageLoop(){
+  if (stageRaf) return;
+  const frame = () => {
+    const src = currentSrc(), id = src === 'local' ? 'tx' : src === 'remote' ? 'rx' : null;
+    const playing = !!id && performance.now() - lastLoud[id] < 1800;
+    const target = playing ? Math.min(1, level[id] * 1.8) : 0;
+    smooth += (target - smooth) * 0.2;
+    npCard.style.setProperty('--lvl', smooth.toFixed(3));
+    if (playing !== lastPlaying){ npCard.classList.toggle('playing', playing); lastPlaying = playing; }
+    stageRaf = requestAnimationFrame(frame);
+  };
+  frame();
+}
+
+/* ============ ÂM LƯỢNG / ĐỘ TRỄ / ĐO MỨC ÂM ============ */
+function applyLatency(){
+  if (!receiver) return;
+  const ms = +$('latency').value;
+  try { receiver.jitterBufferTarget = ms; } catch (_) {}
+  try { receiver.playoutDelayHint = ms / 1000; } catch (_) {}
+}
+
+function startMeter(stream, id){
+  stopMeter(id);
+  audioCtx = audioCtx || new AudioContext();
+  audioCtx.resume();
+  const src = audioCtx.createMediaStreamSource(stream);
+  const an = audioCtx.createAnalyser(); an.fftSize = 256;
+  src.connect(an); // không nối ra loa, chỉ để đo mức âm
+  const buf = new Uint8Array(an.fftSize);
+  let raf;
+  const loop = () => {
+    an.getByteTimeDomainData(buf);
+    let peak = 0; for (const v of buf) peak = Math.max(peak, Math.abs(v - 128));
+    level[id] = peak / 128;
+    if (peak > 2) lastLoud[id] = performance.now();
+    raf = requestAnimationFrame(loop);
+  };
+  loop();
+  meters[id] = () => { cancelAnimationFrame(raf); try { src.disconnect(); } catch (_) {} level[id] = 0; lastLoud[id] = 0; };
+}
+function stopMeter(id){ if (meters[id]){ meters[id](); delete meters[id]; } }
+
+/* ============ THỐNG KÊ ============ */
+function startStats(){ stopStats(); lastStats = null; statsTimer = setInterval(pollStats, 1000); }
+function stopStats(){ clearInterval(statsTimer); statsTimer = null; }
+async function pollStats(){
+  if (!pc || pc.connectionState !== 'connected') return;
+  let rtt = null, inb = null, outb = null;
+  (await pc.getStats()).forEach(r => {
+    if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') rtt = r.currentRoundTripTime;
+    if (r.type === 'inbound-rtp' && r.kind === 'audio') inb = r;
+    if (r.type === 'outbound-rtp' && r.kind === 'audio') outb = r;
+  });
+  const now = performance.now();
+  if (lastStats && inb && outb){
+    const dt = (now - lastStats.t) / 1000;
+    $('stRx').textContent = Math.max(0, Math.round((inb.bytesReceived - lastStats.rx) * 8 / dt / 1000));
+    $('stTx').textContent = Math.max(0, Math.round((outb.bytesSent - lastStats.tx) * 8 / dt / 1000));
+  }
+  if (inb && outb) lastStats = {t: now, rx: inb.bytesReceived, tx: outb.bytesSent};
+  if (rtt != null) $('stPing').textContent = Math.round(rtt * 1000);
+  if (inb){
+    const total = inb.packetsReceived + inb.packetsLost;
+    $('stLoss').textContent = total ? (inb.packetsLost / total * 100).toFixed(1) + '%' : '0%';
+    if (inb.jitter != null) $('stJit').textContent = Math.round(inb.jitter * 1000);
+  }
+}
+
+/* ============ GẮN SỰ KIỆN UI ============ */
+function run(btn, fn){
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try { await fn(); } catch (e){ console.error(e); toast(e.message || String(e), 5000); }
+    btn.disabled = false;
+  });
+}
+run($('btnOffer'), makeOffer);
+run($('btnConnect'), applyAnswer);
+run($('btnAnswer'), makeAnswer);
+run($('btnShare'), startShare);
+$('btnStop').onclick = () => stopShare();
+$('btnLeave').onclick = leave;
+
+$('tabHost').onclick = () => { $('tabHost').classList.add('on'); $('tabGuest').classList.remove('on'); $('hostPanel').hidden = false; $('guestPanel').hidden = true; };
+$('tabGuest').onclick = () => { $('tabGuest').classList.add('on'); $('tabHost').classList.remove('on'); $('guestPanel').hidden = false; $('hostPanel').hidden = true; };
+
+$('vol').oninput = e => {
+  remoteAudio.volume = e.target.value / 100;
+  e.target.style.setProperty('--p', e.target.value + '%');
+  $('volVal').textContent = e.target.value + '%';
+};
+$('latency').onchange = applyLatency;
+$('btnUnmute').onclick = () => { remoteAudio.play().then(() => { $('btnUnmute').hidden = true; }).catch(() => {}); };
+
+let titleTimer;
+$('titleIn').oninput = e => {
+  np.local.title = e.target.value.trim();
+  renderNP();
+  clearTimeout(titleTimer); titleTimer = setTimeout(sendNP, 300);
+};
+
+document.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
+  const ta = $(b.dataset.copy);
+  try { await navigator.clipboard.writeText(ta.value); }
+  catch (_) { ta.select(); document.execCommand('copy'); }
+  toast('Đã sao chép');
+});
+
+/* ============ KIỂM TRA TRÌNH DUYỆT ============ */
+(function checkCompat(){
+  const msgs = [];
+  if (!window.RTCPeerConnection) msgs.push('Trình duyệt không hỗ trợ WebRTC.');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) msgs.push('Trình duyệt không hỗ trợ chia sẻ màn hình/tab.');
+  if (!window.isSecureContext) msgs.push('Cần mở qua https:// hoặc file:// (không dùng http:// thường).');
+  if (typeof CompressionStream === 'undefined') msgs.push('Trình duyệt cũ: mã kết nối sẽ dài hơn bình thường.');
+  const isChromium = !!(navigator.userAgentData && navigator.userAgentData.brands.some(b => /Chrom/i.test(b.brand)));
+  if (!isChromium) msgs.push('Nên dùng Chrome hoặc Edge: Firefox/Safari không chia sẻ được âm thanh tab.');
+  if (msgs.length){
+    const el = $('compat'); el.hidden = false;
+    el.className = 'notice ' + (window.RTCPeerConnection && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia ? 'warn' : 'bad');
+    el.innerHTML = msgs.map(m => '• ' + m).join('<br>');
+  }
+})();
+</script>
+</body>
+</html>
